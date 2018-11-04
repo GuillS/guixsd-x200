@@ -14,9 +14,31 @@
              (gnu packages guile)
              (gnu packages base)
              (gnu services xorg)
+	     (gnu services)
+	     (gnu services shepherd)
+	     (gnu services base)
              (guix store))
-(use-service-modules desktop)
+(use-service-modules desktop base)
 (use-package-modules certs gnome xorg xdisorg)
+
+;; setkeycodes for the rotate screen button (6c 153)
+;; touchscreen works, pen require a rotation with xsetwacom(TODO)
+;; adaptation of the code from the console-keymap service
+(define extrakeys-service-type
+  (shepherd-service-type
+   'extrakeys
+   (lambda (files)
+     (shepherd-service
+      (documentation (string-append "Load extra keys (setkeycodes)."))
+      (provision '(extrakeys))
+      (start #~(lambda _
+                 (zero? (system* #$(file-append kbd "/bin/setkeycodes")
+                                 #$@files))))
+      (respawn? #f)))))
+
+(define (extrakeys-service . files)
+  "Return a service to load extrakeys: @var{files}."
+  (service extrakeys-service-type files))
 
 ;; Udev rule to enable pen and touch inputs
 (define %wacom-udev-rule
@@ -89,6 +111,8 @@
                    gvfs              ;for user mounts
                    ;;X
                    xf86-input-evdev
+		   ;; Required to get the xsetwacom application:
+		   xf86-input-wacom
                    libwacom 
                    xdpyinfo
                    xmodmap xev xrandr xkill xbindkeys 
@@ -107,6 +131,8 @@
                    %base-packages))
 
   (services (cons*
+	      (console-keymap-service "us")
+	      (extrakeys-service "0x67" "184" "0x6c" "153" "0x68" "186" "0x66" "187")
               (gnome-desktop-service)
               %custom-services))
 
